@@ -13,6 +13,7 @@ import time
 import signal
 import re
 import shutil
+import random
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -55,10 +56,6 @@ SOURCES = {
         'name': 'Saskatoon Police News',
         'url': 'https://saskatoonpolice.ca/rss/news/'
     },
-    'thomson_reuters': {
-        'name': 'Thomson Reuters News',
-        'url': 'https://ir.thomsonreuters.com/rss/news-releases.xml?items=15'
-    },
     'bbc': {
         'name': 'BBC News - World',
         'url': 'https://feeds.bbci.co.uk/news/world/rss.xml'
@@ -66,10 +63,6 @@ SOURCES = {
     'nasdaq_tech': {
         'name': 'Nasdaq - Technology',
         'url': 'https://www.nasdaq.com/feed/rssoutbound?category=Technology'
-    },
-    'nasdaq_ipos': {
-        'name': 'Nasdaq - IPOs',
-        'url': 'https://www.nasdaq.com/feed/rssoutbound?category=IPOs'
     },
     'nasdaq_original': {
         'name': 'Nasdaq - Original',
@@ -98,6 +91,10 @@ SOURCES = {
     'espn_nfl': {
         'name': 'ESPN NFL News',
         'url': 'https://www.espn.com/espn/rss/nfl/news?null'
+    },
+    'xxlhiphop': {
+        'name': 'XXL Hip Hop',
+        'url': 'https://www.xxlmag.com/feed/'
     }
 }
 
@@ -113,6 +110,7 @@ class RSSNewsScraper:
         self.output_dir = output_dir
         self.images_dir = os.path.join(output_dir, 'images')
         self.articles = []
+        self.image_counter = 0  # Counter for sequential image IDs
         
         # OpenAI Configuration
         self.openai_enabled = False
@@ -248,23 +246,10 @@ class RSSNewsScraper:
                     logger.debug(f"Could not validate image dimensions: {e}")
                     return None
             
-            # Create valid filename
-            if not filename or '.' not in filename:
-                filename = f"{article_title[:30].replace(' ', '_')}{file_ext}"
-            else:
-                # Ensure extension is correct
-                base = os.path.splitext(filename)[0]
-                filename = f"{base}{file_ext}"
-            
+            # Create valid filename using source key and sequential ID
+            self.image_counter += 1
+            filename = f"{self.source_key}_{self.image_counter}{file_ext}"
             file_path = os.path.join(self.images_dir, filename)
-            
-            # Avoid overwriting files
-            if os.path.exists(file_path):
-                base, ext = os.path.splitext(filename)
-                counter = 1
-                while os.path.exists(os.path.join(self.images_dir, f"{base}_{counter}{ext}")):
-                    counter += 1
-                file_path = os.path.join(self.images_dir, f"{base}_{counter}{ext}")
             
             with open(file_path, 'wb') as f:
                 f.write(response.content)
@@ -272,57 +257,19 @@ class RSSNewsScraper:
             # Log with dimensions if available, otherwise note validation was skipped
             size_kb = len(response.content)/1024
             if width and height:
-                logger.info(f"✓ Downloaded image: {filename} ({size_kb:.1f}KB, {width}x{height})")
+                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}{file_ext} ({size_kb:.1f}KB, {width}x{height})")
             elif validation_skipped:
-                logger.info(f"✓ Downloaded image: {filename} ({size_kb:.1f}KB, AVIF - validation skipped)")
+                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}{file_ext} ({size_kb:.1f}KB, AVIF - validation skipped)")
             else:
-                logger.info(f"✓ Downloaded image: {filename} ({size_kb:.1f}KB)")
+                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}{file_ext} ({size_kb:.1f}KB)")
+            return file_path
             return file_path
         except Exception as e:
             logger.debug(f"Error downloading image {image_url}: {e}")
             return None
     
 
-    def download_favicon(self, article_url):
-        """Download favicon from article domain as fallback image"""
-        try:
-            # Extract domain from URL
-            parsed = urlparse(article_url)
-            domain = f"{parsed.scheme}://{parsed.netloc}"
-            
-            # Common favicon locations to try
-            favicon_urls = [
-                f"{domain}/favicon.ico",
-                f"{domain}/apple-touch-icon.png",
-                f"{domain}/apple-touch-icon-precomposed.png",
-            ]
-            
-            for favicon_url in favicon_urls:
-                try:
-                    response = requests.get(favicon_url, headers=self.headers, timeout=5)
-                    response.raise_for_status()
-                    
-                    # Check file size
-                    if len(response.content) < 1024:  # At least 1KB for favicon
-                        continue
-                    
-                    # Save favicon
-                    filename = f"favicon_{int(time.time())}_{parsed.netloc.replace('.', '_')}.ico"
-                    file_path = os.path.join(self.images_dir, filename)
-                    
-                    with open(file_path, 'wb') as f:
-                        f.write(response.content)
-                    
-                    logger.debug(f"Downloaded favicon: {filename}")
-                    return file_path
-                except Exception as e:
-                    logger.debug(f"Failed to fetch {favicon_url}: {e}")
-                    continue
-        except Exception as e:
-            logger.debug(f"Error downloading favicon: {e}")
-        
-        return None
-    
+
     def clean_content(self, html_content):
         """Clean and extract main content from HTML, preserving paragraph breaks"""
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -803,16 +750,6 @@ class RSSNewsScraper:
                     except Exception as e:
                         logger.debug(f"Could not get file size for {local_path}: {e}")
             
-            # If no article images found, try favicon as fallback
-            if not image_data:
-                logger.debug(f"No article images found, attempting to fetch favicon")
-                favicon_path = self.download_favicon(article_url)
-                if favicon_path:
-                    try:
-                        file_size = os.path.getsize(favicon_path)
-                        image_data.append((favicon_path, file_size))
-                    except Exception as e:
-                        logger.debug(f"Could not get file size for favicon {favicon_path}: {e}")
             
             # Keep only the largest image if multiple were downloaded
             if len(image_data) > 1:
@@ -1324,6 +1261,9 @@ def main():
     logger.info(f"Combining {len(all_articles)} articles from {len(sources_to_scrape)} sources")
     logger.info(f"{'='*60}\n")
     
+    # Randomize articles with the same date
+    all_articles = randomize_articles_by_date(all_articles)
+    
     # Save combined CSV
     csv_path = os.path.join(output_dir, 'articles.csv')
     try:
@@ -1343,6 +1283,24 @@ def main():
         logger.info(f"✓ Generated HTML file: {html_path}")
     except Exception as e:
         logger.error(f"Error generating HTML: {e}")
+
+
+
+def randomize_articles_by_date(articles):
+    """Randomize article order within each date group"""
+    from itertools import groupby
+    
+    # Sort articles by date first
+    sorted_articles = sorted(articles, key=lambda x: x.get('Date', ''))
+    
+    # Group by date and randomize within each group
+    result = []
+    for date, group in groupby(sorted_articles, key=lambda x: x.get('Date', '')):
+        group_list = list(group)
+        random.shuffle(group_list)
+        result.extend(group_list)
+    
+    return result
 
 
 def generate_html_file(articles, filepath):
