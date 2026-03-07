@@ -1264,6 +1264,9 @@ def main():
     # Randomize articles with the same date
     all_articles = randomize_articles_by_date(all_articles)
     
+    # Move NFL and hockey articles to the bottom
+    all_articles = move_nfl_and_hockey_to_bottom(all_articles)
+    
     # Save combined CSV
     csv_path = os.path.join(output_dir, 'articles.csv')
     try:
@@ -1287,20 +1290,38 @@ def main():
 
 
 def randomize_articles_by_date(articles):
-    """Randomize article order within each date group"""
+    """Randomize article order within each date group with aggressive shuffling"""
     from itertools import groupby
     
     # Sort articles by date first
     sorted_articles = sorted(articles, key=lambda x: x.get('Date', ''))
     
-    # Group by date and randomize within each group
+    # Group by date and randomize within each group with multiple shuffles
     result = []
     for date, group in groupby(sorted_articles, key=lambda x: x.get('Date', '')):
         group_list = list(group)
-        random.shuffle(group_list)
+        # Do multiple shuffle passes to break up source grouping
+        for _ in range(3):
+            random.shuffle(group_list)
         result.extend(group_list)
     
     return result
+
+
+def move_nfl_and_hockey_to_bottom(articles):
+    """Move NFL and hockey articles to the bottom of the list"""
+    nfl_hockey_articles = []
+    other_articles = []
+    
+    for article in articles:
+        source_key = article.get('Source', '').lower()
+        # Check if it's from ESPN NFL or The Hockey Writers
+        if 'nfl' in source_key or 'hockey' in source_key:
+            nfl_hockey_articles.append(article)
+        else:
+            other_articles.append(article)
+    
+    return other_articles + nfl_hockey_articles
 
 
 def generate_html_file(articles, filepath):
