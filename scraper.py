@@ -705,7 +705,7 @@ class StarPhoenixScraper:
     </main>
 
     <!-- Article Detail Modal -->
-    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto" onclick="closeOnOverlayClick(event)">
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <!-- Modal Header -->
@@ -866,13 +866,14 @@ class StarPhoenixScraper:
             document.body.style.overflow = 'auto';
         }}
 
-        // Close modal when clicking outside (on the overlay)
-        document.addEventListener('click', function(event) {{
-            const modal = document.getElementById('modal');
-            if (event.target === modal) {{
+        // Close modal when clicking on the overlay (dark background)
+        function closeOnOverlayClick(event) {{
+            // Check if the click was on the modal itself (overlay), not on the white content box
+            const contentBox = event.target.closest('.bg-white');
+            if (!contentBox) {{
                 closeModal();
             }}
-        }});
+        }}
 
         // Format date
         function formatDate(dateStr) {{
