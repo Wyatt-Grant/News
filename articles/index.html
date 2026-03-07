@@ -323,6 +323,14 @@
             document.body.style.overflow = 'auto';
         }
 
+        // Close modal when clicking outside (on the overlay)
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
         // Format date
         function formatDate(dateStr) {
             try {

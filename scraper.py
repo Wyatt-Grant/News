@@ -7,6 +7,7 @@ Scrapes articles from Star Phoenix RSS feed, extracts content, and exports to CS
 import feedparser
 import requests
 import csv
+import json
 import os
 import time
 import signal
@@ -467,10 +468,10 @@ class StarPhoenixScraper:
             
             summary = ' '.join(summary_sentences)
             
-            # Limit to ~175 words
+            # Limit to ~60 words
             words_list = summary.split()
-            if len(words_list) > 175:
-                summary = ' '.join(words_list[:175]) + '...'
+            if len(words_list) > 60:
+                summary = ' '.join(words_list[:60]) + '...'
             
             # Ensure proper ending
             if not summary.endswith(('.', '!', '?')):
@@ -527,7 +528,7 @@ class StarPhoenixScraper:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a professional news editor. Create a concise summary of the article in 150-200 words, capturing the key facts, context, and main points. Do not add your own commentary. Keep it natural and readable."
+                        "content": "You are a professional news editor. Create a concise summary of the article in 50-70 words, capturing only the key facts. Be very brief and concise. Do not add your own commentary."
                     },
                     {
                         "role": "user",
@@ -535,7 +536,7 @@ class StarPhoenixScraper:
                     }
                 ],
                 temperature=0.5,
-                max_tokens=300
+                max_tokens=150
             )
             
             summary = response.choices[0].message.content.strip()
@@ -659,6 +660,248 @@ class StarPhoenixScraper:
         except Exception as e:
             logger.error(f"Error saving to CSV: {e}")
     
+    def generate_html(self, filename='articles.html'):
+        """Generate a standalone HTML file with embedded article data"""
+        if not self.articles:
+            logger.warning("No articles to generate HTML")
+            return
+        
+        filepath = os.path.join(self.output_dir, filename)
+        
+        # Embed article data as JSON
+        articles_json = json.dumps(self.articles)
+        
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Phoenix Articles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .line-clamp-2 {{
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-3xl font-bold text-gray-900">🗞️ Star Phoenix News</h1>
+            <p class="text-gray-600 mt-1">Latest articles from Star Phoenix RSS feed</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Articles Grid -->
+        <div id="articles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Articles will be rendered here -->
+        </div>
+    </main>
+
+    <!-- Article Detail Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <!-- Modal Header -->
+                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start">
+                    <div class="flex-1">
+                        <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-gray-900 break-words"></h2>
+                        <div id="modal-meta" class="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                            <span id="modal-author"></span>
+                            <span id="modal-date"></span>
+                        </div>
+                    </div>
+                    <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 font-bold text-2xl ml-4">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- Modal Image -->
+                <div id="modal-image-container" class="bg-gray-100">
+                    <!-- Images will be inserted here -->
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-6 sm:p-8">
+                    <div id="modal-summary" class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-600 rounded"></div>
+                    <div id="modal-content" class="max-w-none prose-base"></div>
+                    <a id="modal-link" href="#" target="_blank" class="inline-block mt-6 text-blue-600 hover:text-blue-800 font-semibold underline">
+                        Read on Star Phoenix →
+                    </a>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="border-t p-4 text-center">
+                    <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Embedded article data
+        const articles = {articles_json};
+
+        // Render articles
+        function renderArticles() {{
+            const container = document.getElementById('articles-container');
+            container.innerHTML = '';
+
+            articles.forEach((article, index) => {{
+                const dateFormatted = formatDate(article.Date);
+                
+                // Get first image if available
+                let imagePath = '';
+                if (article.Image_URLs) {{
+                    const imagePaths = article.Image_URLs.split('|').filter(p => p.trim());
+                    if (imagePaths.length > 0) {{
+                        imagePath = imagePaths[0];
+                        if (!imagePath.startsWith('http')) {{
+                            imagePath = imagePath.replace(/^articles\\//, './');
+                        }}
+                    }}
+                }}
+
+                const imageHtml = imagePath ? 
+                    `<img src="${{escapeHtml(imagePath)}}" alt="Article image" class="w-full h-48 object-cover bg-gray-200" onerror="this.parentElement.style.backgroundColor='#d1d5db'; this.style.display='none';">` :
+                    '';
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden';
+                card.innerHTML = `
+                    ${{imageHtml}}
+                    <div class="p-4">
+                        <h3 class="font-bold text-lg text-gray-900 mb-2 line-clamp-2">${{escapeHtml(article.Title)}}</h3>
+                        <p class="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed">${{escapeHtml(article.Summary ? article.Summary.substring(0, 125) : 'No summary available')}}</p>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            <span>${{escapeHtml(article.Author)}}</span>
+                            <span>${{dateFormatted}}</span>
+                        </div>
+                    </div>
+                `;
+                card.onclick = () => openModal(index);
+                container.appendChild(card);
+            }});
+        }}
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {{
+            if (!text) return '';
+            const map = {{
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }};
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }}
+
+        // Open modal with article details
+        function openModal(index) {{
+            const article = articles[index];
+            const modal = document.getElementById('modal');
+
+            // Set content
+            document.getElementById('modal-title').textContent = article.Title;
+            document.getElementById('modal-author').textContent = `By ${{article.Author}}`;
+            document.getElementById('modal-date').textContent = formatDate(article.Date);
+            document.getElementById('modal-link').href = article.URL;
+
+            // Show summary if available
+            if (article.Summary && article.Summary.trim()) {{
+                document.getElementById('modal-summary').innerHTML = `<p class="font-semibold text-gray-800 leading-relaxed m-0">${{escapeHtml(article.Summary)}}</p>`;
+            }} else {{
+                document.getElementById('modal-summary').innerHTML = '';
+            }}
+
+            // Format content with line breaks and styling
+            const formattedContent = article.Content
+                .split('\\n\\n')
+                .filter(p => p.trim())
+                .map((p) => {{
+                    const escaped = escapeHtml(p);
+                    return `<p class="mb-4 leading-relaxed text-gray-700">${{escaped}}</p>`;
+                }})
+                .join('');
+            document.getElementById('modal-content').innerHTML = formattedContent;
+
+            // Add images if available
+            const imageContainer = document.getElementById('modal-image-container');
+            imageContainer.innerHTML = '';
+            if (article.Image_URLs) {{
+                const imagePaths = article.Image_URLs.split('|').filter(p => p.trim());
+                if (imagePaths.length > 0) {{
+                    imagePaths.forEach(imagePath => {{
+                        if (!imagePath.startsWith('http')) {{
+                            imagePath = imagePath.replace(/^articles\\//, './');
+                        }}
+                        
+                        const img = document.createElement('img');
+                        img.src = imagePath;
+                        img.alt = article.Title;
+                        img.className = 'w-full h-auto';
+                        img.onerror = () => {{
+                            console.warn('Failed to load image:', imagePath);
+                        }};
+                        imageContainer.appendChild(img);
+                    }});
+                }}
+            }}
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }}
+
+        function closeModal() {{
+            document.getElementById('modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }}
+
+        // Close modal when clicking outside (on the overlay)
+        document.addEventListener('click', function(event) {{
+            const modal = document.getElementById('modal');
+            if (event.target === modal) {{
+                closeModal();
+            }}
+        }});
+
+        // Format date
+        function formatDate(dateStr) {{
+            try {{
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', {{ 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }});
+            }} catch (e) {{
+                return dateStr;
+            }}
+        }}
+
+        // Initialize
+        renderArticles();
+    </script>
+</body>
+</html>
+"""
+        
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            logger.info(f"Generated standalone HTML file: {filepath}")
+        except Exception as e:
+            logger.error(f"Error generating HTML: {e}")
+    
     def run(self, max_articles=None):
         """Run the scraper"""
         logger.info("Starting Star Phoenix scraper...")
@@ -689,6 +932,10 @@ class StarPhoenixScraper:
         
         # Save to CSV
         self.save_to_csv()
+        
+        # Generate standalone HTML file
+        self.generate_html()
+        
         logger.info(f"Scraping complete! Processed {len(self.articles)} articles")
 
 

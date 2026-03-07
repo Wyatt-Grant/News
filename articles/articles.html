@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Phoenix Articles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-3xl font-bold text-gray-900">🗞️ Star Phoenix News</h1>
+            <p class="text-gray-600 mt-1">Latest articles from Star Phoenix RSS feed</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Articles Grid -->
+        <div id="articles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Articles will be rendered here -->
+        </div>
+    </main>
+
+    <!-- Article Detail Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <!-- Modal Header -->
+                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start">
+                    <div class="flex-1">
+                        <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-gray-900 break-words"></h2>
+                        <div id="modal-meta" class="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                            <span id="modal-author"></span>
+                            <span id="modal-date"></span>
+                        </div>
+                    </div>
+                    <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 font-bold text-2xl ml-4">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- Modal Image -->
+                <div id="modal-image-container" class="bg-gray-100">
+                    <!-- Images will be inserted here -->
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-6 sm:p-8">
+                    <div id="modal-summary" class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-600 rounded"></div>
+                    <div id="modal-content" class="max-w-none prose-base"></div>
+                    <a id="modal-link" href="#" target="_blank" class="inline-block mt-6 text-blue-600 hover:text-blue-800 font-semibold underline">
+                        Read on Star Phoenix →
+                    </a>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="border-t p-4 text-center">
+                    <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Embedded article data
+        const articles = [{"Title": "Despite off-night shooting, Huskies advance to women's hoops semifinal", "Date": "Fri, 06 Mar 2026 17:08:22 +0000", "Author": "thestarphoenix", "URL": "https://thestarphoenix.com/sports/local-sports/u-of-s-huskies/despite-off-night-shooting-huskies-advance-to-womens-hoops-semifinal", "Summary": "The University of Saskatchewan Huskies advanced to the U Sports women\u2019s basketball semifinals with a 71-55 win over UBC, despite shooting poorly. Led by Gage Grassick\u2019s 25 points, they face Laval next. Laval upset top-ranked Toronto Metropolitan in the quarterfinal. Calgary and New Brunswick also advanced to the semifinals.", "Content": "Though the University of Saskatchewan Huskies were off-target on the offensive end, they were sharp enough defensively to make up for it as they began their pursuit for back-to-back national basketball titles. In their quarterfinal on Thursday versus Canada West rival British Columbia at the U Sports Women\u2019s Final 8 in Quebec City, the fifth-ranked Huskies shot just 24 per cent from three-point range and 48 per cent from the free throw line, but overcame those struggles by locking down the fourth-ranked Thunderbirds. Holding UBC to 34 per cent shooting from the field and never allowing more than 15 points in any quarter, the Huskies advanced to Saturday\u2019s semifinal with a 71-55 victory.\n\nWinners of U Sports crowns in 2016, 2020 and 2025, the Huskies have another national title within reach. The team, undefeated in the regular season, lost in the Canada West semifinal but received the lone wild card to nationals.\n\n\u201cI think if we can defend like that and we can have a bit better shooting night, then we\u2019ll give ourselves a chance no matter who we\u2019re playing against,\u201d Huskies head coach Lisa Thomaidis said following the game.\n\nFirst-team all-Canadian Gage Grassick led the Huskies with a game-high 25 points, while adding three steals and four rebounds. Ella Murphy Wiebe scored 16 points and hauled down eight rebounds. Maya Flindell and Andrea Dodig each scored 11 points for the team. Sara Toneguzzi had a team-high 21 points for UBC.\n\nIn Saturday\u2019s semifinal, the Huskies take on No. 8-ranked and host Laval. In a first-round upset, the Rouge et Or defeated top-ranked Toronto Metropolitan 57-54. Sabrine Khelifi led her team with 14 points and banked a three-pointer from the top of the arc with 15 seconds left in the fourth quarter to break the tie and propel her squad to the medal round.\n\nThe Huskies tip off Saturday against Laval at 4 p.m. On the other side of the bracket, Canada West champion and third-ranked Calgary Dinos advanced with a 58-45 win over sixth-ranked McGill. In Saturday\u2019s other semifinal, Calgary faces No. 2-ranked New Brunswick, which handled seventh-ranked Carleton Ravens 80-63.", "Image_URLs": "articles/images/0309-sports-huskies-bball-44_293705946_22.jpg"}, {"Title": "Complex repairs needed after semi collision with Saskatoon overpass", "Date": "Fri, 06 Mar 2026 16:26:20 +0000", "Author": "thestarphoenix", "URL": "https://thestarphoenix.com/news/local-news/semi-collision-with-overpass-reduces-saskatoon-freeway-lanes", "Summary": "A semi hauling heavy equipment struck the Highway 11, Highway 16, and Circle Drive overpass in Saskatoon, causing significant damage. Traffic was reduced to a single lane, and repairs are underway, though the extent and timeline are uncertain. No injuries occurred, and detours are in place for northbound Highway 11 traffic. Authorities are investigating the incident.", "Content": "Traffic moved through a single open lane beneath the Circle Drive overpass on Highway 11 as crews assessed damage after a semi hauling heavy equipment struck the structure Thursday afternoon. Saskatoon Police said the collision caused significant damage to the overpass at the Highway 11, Highway 16, and Circle Drive cloverleaf.\n\nRepairs are needed on the busy overpass in Saskatoon after cargo on a semi trailer collided with the concrete structure. The City of Saskatoon stated that the extent of the damage or the cost of fixing the section of the cloverleaf at Circle Drive and Highway 11 was not immediately known after the collision Thursday afternoon. Planning for repairs was underway on Friday, though a repair timeline was not available due to \u201cthe complexity and extent of the required work,\u201d the city said in a news release.\n\nAccording to Saskatoon police, a semi with a trailer carrying a piece of equipment on Thursday around 5 p.m. in the northbound lane of Highway 11 from Regina entering the city limits at the Circle Drive overpass was too high for the structure and caused significant damage. Northbound traffic on Highway 11 and eastbound traffic on Circle Drive was immediately closed off for hours before one lane in each direction was reopened. No injuries were reported.\n\nCity engineers, Saskatoon police, emergency services, and collision analysts were all on the scene. The analysts were working with Saskatchewan Highway Patrol to investigate. Work started on Friday morning to safely remove loose concrete and address safety concerns. Southbound traffic on Highway 11 and westbound traffic on Highway 16 remained unaffected. Northbound semi trucks on Highway 11 were being detoured around the area at Township 360 via Range Road 3050, according to the city.", "Image_URLs": "articles/images/0307-news-circle-drive-overpass-1_301870116_8.jpg"}, {"Title": "Warm to early sounds of spring: Five things to do this weekend in Saskatoon, March 6-8", "Date": "Fri, 06 Mar 2026 12:00:48 +0000", "Author": "Jocelyn Bennett, Saskatoon StarPhoenix", "URL": "https://thestarphoenix.com/news/local-news/warm-to-early-sounds-of-spring-five-things-to-do-this-weekend-in-saskatoon-march-6-8", "Summary": "A women's march was held at Vimy Memorial Park on Sunday for International Women\u2019s Day, featuring a book reading and musical performances. Other events included \"An Evening with the Bromantics\" tribute to 1950s music, a brass band concert, Eric Kane\u2019s solo tour, the Saskatoon Symphony\u2019s \"Spring Fever,\" and Yurii Kolotylyn\u2019s Ukrainian and English standup comedy shows.", "Content": "Commemorating International Women\u2019s Day, a women\u2019s march was held at the Vimy Memorial in Kiwainis Memorial Park on Sunday at 1 p.m. The event included a book reading, a performance of piano pieces, and some favorite cover songs. Nasser was joined by Bart McKay and Murray Pulver for the performance. The event took place on Friday at the Bassment at 8:30 p.m.\n\nEnjoy a modern take on classic music with \"An Evening with the Bromantics,\" which brings the 1950s to the stage in a tribute to the golden era. The six-piece Saskatchewan band puts its own spin on the sounds of the decade, exploring Motown and early rock with songs from Roy Orbison, The Platters, Buddy Holly, and Sam Cooke. The all-ages concert was scheduled for Friday at the Broadway Theatre at 8 p.m.\n\nThe Bridge City Brass Band presented traditional and contemporary brass band music. Alongside familiar tunes, the concert featured the Saskatoon premiere of \"A Gallimaufry Suite\" by Philip Harper and \"Eternity\" by Michael Bojesen. The concert was held on Sunday at Grace-Westminster United Church at 2:30 p.m.\n\nCanadian singer-songwriter Eric Kane stopped in Saskatoon on his \"Love is a Weapon pt2\" tour. Spreading a message of self-love and growth, Kane\u2019s music translates personal pain into poetic lyricism, navigating grief from the loss of his brother, resilience, and emotional recovery. The concert, limited to ages 19 and older, took place on Friday at Art Bar at 7 p.m.\n\nThe Saskatoon Symphony Orchestra presented \"Spring Fever,\" with guest conductor Tania Miller leading a musical journey from darkness to light, reflecting the joy of winter transitioning into spring. Principal bassoonist Stephanie Unverricht took center stage for Mozart\u2019s Bassoon Concerto. Other works for the evening included pieces by Beethoven and Schumann.\n\nYurii Kolotylyn brought his comedy to the stage with a full-length standup show performed in Ukrainian, followed by an English version. The shows, limited to ages 19 and older, were scheduled for Saturday at Art Bar at 7 p.m. in Ukrainian and 9 p.m. in English.", "Image_URLs": "articles/images/0306-news-five-things-stephanie-unverricht-bassoonist-w-sso-julie_301822610_8.jpg"}];
+
+        // Render articles
+        function renderArticles() {
+            const container = document.getElementById('articles-container');
+            container.innerHTML = '';
+
+            articles.forEach((article, index) => {
+                const dateFormatted = formatDate(article.Date);
+                
+                // Get first image if available
+                let imagePath = '';
+                if (article.Image_URLs) {
+                    const imagePaths = article.Image_URLs.split('|').filter(p => p.trim());
+                    if (imagePaths.length > 0) {
+                        imagePath = imagePaths[0];
+                        if (!imagePath.startsWith('http')) {
+                            imagePath = imagePath.replace(/^articles\//, './');
+                        }
+                    }
+                }
+
+                const imageHtml = imagePath ? 
+                    `<img src="${escapeHtml(imagePath)}" alt="Article image" class="w-full h-48 object-cover bg-gray-200" onerror="this.parentElement.style.backgroundColor='#d1d5db'; this.style.display='none';">` :
+                    '';
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden';
+                card.innerHTML = `
+                    ${imageHtml}
+                    <div class="p-4">
+                        <h3 class="font-bold text-lg text-gray-900 mb-2 line-clamp-2">${escapeHtml(article.Title)}</h3>
+                        <p class="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed">${escapeHtml(article.Summary ? article.Summary.substring(0, 125) : 'No summary available')}</p>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            <span>${escapeHtml(article.Author)}</span>
+                            <span>${dateFormatted}</span>
+                        </div>
+                    </div>
+                `;
+                card.onclick = () => openModal(index);
+                container.appendChild(card);
+            });
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Open modal with article details
+        function openModal(index) {
+            const article = articles[index];
+            const modal = document.getElementById('modal');
+
+            // Set content
+            document.getElementById('modal-title').textContent = article.Title;
+            document.getElementById('modal-author').textContent = `By ${article.Author}`;
+            document.getElementById('modal-date').textContent = formatDate(article.Date);
+            document.getElementById('modal-link').href = article.URL;
+
+            // Show summary if available
+            if (article.Summary && article.Summary.trim()) {
+                document.getElementById('modal-summary').innerHTML = `<p class="font-semibold text-gray-800 leading-relaxed m-0">${escapeHtml(article.Summary)}</p>`;
+            } else {
+                document.getElementById('modal-summary').innerHTML = '';
+            }
+
+            // Format content with line breaks and styling
+            const formattedContent = article.Content
+                .split('\n\n')
+                .filter(p => p.trim())
+                .map((p) => {
+                    const escaped = escapeHtml(p);
+                    return `<p class="mb-4 leading-relaxed text-gray-700">${escaped}</p>`;
+                })
+                .join('');
+            document.getElementById('modal-content').innerHTML = formattedContent;
+
+            // Add images if available
+            const imageContainer = document.getElementById('modal-image-container');
+            imageContainer.innerHTML = '';
+            if (article.Image_URLs) {
+                const imagePaths = article.Image_URLs.split('|').filter(p => p.trim());
+                if (imagePaths.length > 0) {
+                    imagePaths.forEach(imagePath => {
+                        if (!imagePath.startsWith('http')) {
+                            imagePath = imagePath.replace(/^articles\//, './');
+                        }
+                        
+                        const img = document.createElement('img');
+                        img.src = imagePath;
+                        img.alt = article.Title;
+                        img.className = 'w-full h-auto';
+                        img.onerror = () => {
+                            console.warn('Failed to load image:', imagePath);
+                        };
+                        imageContainer.appendChild(img);
+                    });
+                }
+            }
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close modal when clicking outside (on the overlay)
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Format date
+        function formatDate(dateStr) {
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Initialize
+        renderArticles();
+    </script>
+</body>
+</html>
