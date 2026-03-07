@@ -981,7 +981,7 @@ class RSSNewsScraper:
                     if (imagePaths.length > 0) {{
                         imagePath = imagePaths[0];
                         if (!imagePath.startsWith('http')) {{
-                            imagePath = imagePath.replace(/^articles\\//, './');
+                            imagePath = imagePath.replace(/^docs\\//, './').replace(/^articles\\//, './');
                         }}
                     }}
                 }}
@@ -1072,7 +1072,7 @@ class RSSNewsScraper:
                 if (imagePaths.length > 0) {{
                     imagePaths.forEach(imagePath => {{
                         if (!imagePath.startsWith('http')) {{
-                            imagePath = imagePath.replace(/^articles\\//, './');
+                            imagePath = imagePath.replace(/^docs\\//, './').replace(/^articles\\//, './');
                         }}
                         
                         const img = document.createElement('img');
@@ -1477,7 +1477,7 @@ def generate_html_file(articles, filepath):
                     if (imagePaths.length > 0) {{
                         imagePath = imagePaths[0];
                         if (!imagePath.startsWith('http')) {{
-                            imagePath = imagePath.replace(/^articles\\//, './');
+                            imagePath = imagePath.replace(/^docs\\//, './').replace(/^articles\\//, './');
                         }}
                     }}
                 }}
@@ -1558,7 +1558,7 @@ def generate_html_file(articles, filepath):
                 if (imagePaths.length > 0) {{
                     imagePaths.forEach(imagePath => {{
                         if (!imagePath.startsWith('http')) {{
-                            imagePath = imagePath.replace(/^articles\\//, './');
+                            imagePath = imagePath.replace(/^docs\\//, './').replace(/^articles\\//, './');
                         }}
                         
                         const img = document.createElement('img');

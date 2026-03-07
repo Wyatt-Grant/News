@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Aggregator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="max-w-4xl mx-auto px-4 py-12">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-gray-900 mb-4">🗞️ News Aggregator</h1>
+            <p class="text-xl text-gray-700">Multi-source RSS feed scraper with AI deduplication</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-lg shadow-2xl p-8 mb-8">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">Welcome!</h2>
+                <p class="text-gray-700 text-lg mb-4">
+                    This is a news aggregator that combines articles from 11 different news sources, 
+                    removes duplicates using AI, and presents them in an easy-to-read format.
+                </p>
+            </div>
+
+            <!-- Features Grid -->
+            <div class="grid md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
+                    <h3 class="text-xl font-bold text-blue-900 mb-2">📡 Multiple Sources</h3>
+                    <p class="text-blue-800">Articles from Star Phoenix, CBC, NYT, BBC, ESPN, and more</p>
+                </div>
+                <div class="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
+                    <h3 class="text-xl font-bold text-green-900 mb-2">🤖 AI Powered</h3>
+                    <p class="text-green-800">Smart deduplication and summarization</p>
+                </div>
+                <div class="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
+                    <h3 class="text-xl font-bold text-purple-900 mb-2">✨ Beautiful Design</h3>
+                    <p class="text-purple-800">Interactive dashboard with source badges</p>
+                </div>
+                <div class="bg-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
+                    <h3 class="text-xl font-bold text-orange-900 mb-2">📊 Multiple Formats</h3>
+                    <p class="text-orange-800">HTML dashboard and CSV export</p>
+                </div>
+            </div>
+
+            <!-- Getting Started -->
+            <div class="bg-gray-50 p-6 rounded-lg mb-8">
+                <h3 class="text-2xl font-bold text-gray-900 mb-4">🚀 Getting Started</h3>
+                <ol class="space-y-3 text-gray-700">
+                    <li class="flex items-start">
+                        <span class="font-bold text-blue-600 mr-3">1.</span>
+                        <span>Clone the repository from GitHub</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="font-bold text-blue-600 mr-3">2.</span>
+                        <span>Install dependencies: <code class="bg-gray-200 px-2 py-1 rounded">pip install -r requirements.txt</code></span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="font-bold text-blue-600 mr-3">3.</span>
+                        <span>Run the scraper: <code class="bg-gray-200 px-2 py-1 rounded">python scraper.py -m 5 -o docs</code></span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="font-bold text-blue-600 mr-3">4.</span>
+                        <span>View results: Open <code class="bg-gray-200 px-2 py-1 rounded">docs/articles.html</code></span>
+                    </li>
+                </ol>
+            </div>
+
+            <!-- News Sources -->
+            <div class="mb-8">
+                <h3 class="text-2xl font-bold text-gray-900 mb-4">📰 News Sources</h3>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-4 bg-red-100 border-2 border-red-800 rounded"></span>
+                        <span>Star Phoenix</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-4 bg-orange-100 border-2 border-orange-800 rounded"></span>
+                        <span>CBC News</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-4 bg-yellow-100 border-2 border-yellow-800 rounded"></span>
+                        <span>New York Times</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-4 bg-green-100 border-2 border-green-800 rounded"></span>
+                        <span>Dow Jones</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-4 bg-blue-100 border-2 border-blue-800 rounded"></span>
+                        <span>BBC News</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-4 bg-purple-100 border-2 border-purple-800 rounded"></span>
+                        <span>And 6 more...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Next Steps -->
+            <div class="bg-indigo-50 p-6 rounded-lg border-l-4 border-indigo-500">
+                <h3 class="text-xl font-bold text-indigo-900 mb-2">📖 Next Steps</h3>
+                <p class="text-indigo-800 mb-3">After generating articles, you'll see:</p>
+                <ul class="text-indigo-800 space-y-1 ml-4">
+                    <li>✓ <strong>articles.html</strong> - Interactive news dashboard</li>
+                    <li>✓ <strong>articles.csv</strong> - Spreadsheet with all data</li>
+                    <li>✓ <strong>images/</strong> - Downloaded article images</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-gray-700">
+            <p>See <strong>README.md</strong> for full documentation and usage instructions</p>
+            <p class="text-sm text-gray-600 mt-2">
+                <a href="https://github.com" class="text-blue-600 hover:underline">View on GitHub</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

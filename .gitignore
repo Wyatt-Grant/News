@@ -42,9 +42,5 @@ env/
 .DS_Store
 Thumbs.db
 
-# Project specific
+# Project specific - keep old articles folder ignored, but commit docs/
 articles/
-docs/articles/
-docs/images/
-*.html
-!README.md
