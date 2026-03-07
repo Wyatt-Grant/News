@@ -876,7 +876,7 @@ class RSSNewsScraper:
         except Exception as e:
             logger.error(f"Error saving to CSV: {e}")
     
-    def generate_html(self, filename='articles.html'):
+    def generate_html(self, filename='index.html'):
         """Generate a standalone HTML file with embedded article data"""
         if not self.articles:
             logger.warning("No articles to generate HTML")
@@ -1337,7 +1337,7 @@ def main():
         logger.error(f"Error saving CSV: {e}")
     
     # Generate combined HTML
-    html_path = os.path.join(output_dir, 'articles.html')
+    html_path = os.path.join(output_dir, 'index.html')
     try:
         generate_html_file(all_articles, html_path)
         logger.info(f"✓ Generated HTML file: {html_path}")
