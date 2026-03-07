@@ -860,10 +860,10 @@ class RSSNewsScraper:
 
     <!-- Article Detail Modal -->
     <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto" onclick="closeOnOverlayClick(event)">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start md:items-center justify-center md:min-h-screen p-0 md:p-4">
+            <div class="bg-white w-full h-screen md:h-auto md:rounded-lg md:shadow-xl md:max-w-2xl md:max-h-[90vh] overflow-y-auto">
                 <!-- Modal Header -->
-                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start">
+                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start md:rounded-t-lg">
                     <div class="flex-1">
                         <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-gray-900 break-words"></h2>
                         <div id="modal-meta" class="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
@@ -1025,6 +1025,8 @@ class RSSNewsScraper:
                 }}
             }}
 
+            // Reset scroll to top before showing modal
+            modal.scrollTop = 0;
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }}
@@ -1435,10 +1437,10 @@ def generate_html_file(articles, filepath):
 
     <!-- Article Detail Modal -->
     <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto" onclick="closeOnOverlayClick(event)">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start md:items-center justify-center md:min-h-screen p-0 md:p-4">
+            <div class="bg-white w-full h-screen md:h-auto md:rounded-lg md:shadow-xl md:max-w-2xl md:max-h-[90vh] overflow-y-auto">
                 <!-- Modal Header -->
-                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start">
+                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start md:rounded-t-lg">
                     <div class="flex-1">
                         <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-gray-900 break-words"></h2>
                         <div id="modal-meta" class="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
