@@ -103,7 +103,7 @@ SOURCES = {
 
 
 class RSSNewsScraper:
-    def __init__(self, source_key, output_dir='articles'):
+    def __init__(self, source_key, output_dir='docs'):
         if source_key not in SOURCES:
             raise ValueError(f"Unknown source: {source_key}. Available sources: {list(SOURCES.keys())}")
         
@@ -1265,8 +1265,8 @@ def main():
     parser = argparse.ArgumentParser(description='Scrape RSS feeds from multiple news sources')
     parser.add_argument('-m', '--max', type=int, default=None, 
                         help='Maximum number of articles to scrape from each source')
-    parser.add_argument('-o', '--output', default='articles', 
-                        help='Output directory (default: articles)')
+    parser.add_argument('-o', '--output', default='docs', 
+                        help='Output directory (default: docs)')
     parser.add_argument('-s', '--sources', nargs='+', default=None,
                         help=f'Sources to scrape (default: all). Available: {list(SOURCES.keys())}')
     
