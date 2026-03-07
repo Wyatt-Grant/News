@@ -28,10 +28,63 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Define RSS sources
+SOURCES = {
+    'star_phoenix': {
+        'name': 'Star Phoenix',
+        'url': 'http://thestarphoenix.com/feed'
+    },
+    'cbc': {
+        'name': 'CBC News - World',
+        'url': 'https://www.cbc.ca/webfeed/rss/rss-world'
+    },
+    'nyt': {
+        'name': 'New York Times - World',
+        'url': 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'
+    },
+    'smashing': {
+        'name': 'Smashing Magazine',
+        'url': 'https://www.smashingmagazine.com/feed'
+    },
+    'laravel': {
+        'name': 'Laravel News',
+        'url': 'http://laravel-news.com/feed'
+    },
+    'saskatoon_police': {
+        'name': 'Saskatoon Police News',
+        'url': 'https://saskatoonpolice.ca/rss/news/'
+    },
+    'thomson_reuters': {
+        'name': 'Thomson Reuters News',
+        'url': 'https://ir.thomsonreuters.com/rss/news-releases.xml?items=15'
+    },
+    'bbc': {
+        'name': 'BBC News - World',
+        'url': 'https://feeds.bbci.co.uk/news/world/rss.xml'
+    },
+    'dow_jones': {
+        'name': 'Dow Jones - Top Stories',
+        'url': 'https://feeds.content.dowjones.io/public/rss/mw_topstories'
+    },
+    'hockey_writers': {
+        'name': 'The Hockey Writers',
+        'url': 'https://thehockeywriters.com/feed'
+    },
+    'espn_nfl': {
+        'name': 'ESPN NFL News',
+        'url': 'https://www.espn.com/espn/rss/nfl/news?null'
+    }
+}
 
-class StarPhoenixScraper:
-    def __init__(self, output_dir='articles'):
-        self.rss_url = 'http://thestarphoenix.com/feed'
+
+class RSSNewsScraper:
+    def __init__(self, source_key, output_dir='articles'):
+        if source_key not in SOURCES:
+            raise ValueError(f"Unknown source: {source_key}. Available sources: {list(SOURCES.keys())}")
+        
+        self.source_key = source_key
+        self.source_name = SOURCES[source_key]['name']
+        self.rss_url = SOURCES[source_key]['url']
         self.output_dir = output_dir
         self.images_dir = os.path.join(output_dir, 'images')
         self.articles = []
@@ -57,7 +110,12 @@ class StarPhoenixScraper:
         
         # Headers to avoid being blocked
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
         }
     
     def fetch_rss_feed(self):
@@ -132,7 +190,7 @@ class StarPhoenixScraper:
                 width, height = img.size
                 
                 # Skip images that are too small (likely icons)
-                if width < 200 or height < 200:
+                if width < 300 or height < 300:
                     logger.debug(f"Skipped small image dimensions {width}x{height}: {image_url}")
                     return None
                 
@@ -622,6 +680,7 @@ class StarPhoenixScraper:
                     local_image_paths.append(local_path)
             
             article_data = {
+                'Source': self.source_name,
                 'Title': title,
                 'Date': pub_date,
                 'Author': author,
@@ -633,7 +692,16 @@ class StarPhoenixScraper:
             
             return article_data
         except requests.exceptions.Timeout:
-            logger.warning(f"Timeout scraping {article_url} (taking too long)")
+            logger.warning(f"⏱ Timeout scraping {article_url} (taking too long)")
+            return None
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                logger.warning(f"🚫 Access blocked (403 Forbidden): {article_url}")
+                logger.info("   Tip: This site has anti-scraping protection. Consider adding delays or using different headers.")
+            elif e.response.status_code == 404:
+                logger.warning(f"❌ Article not found (404): {article_url}")
+            else:
+                logger.warning(f"HTTP error {e.response.status_code} scraping {article_url}")
             return None
         except requests.exceptions.RequestException as e:
             logger.warning(f"Request error scraping {article_url}: {e}")
@@ -651,7 +719,7 @@ class StarPhoenixScraper:
         filepath = os.path.join(self.output_dir, filename)
         try:
             with open(filepath, 'w', newline='', encoding='utf-8') as f:
-                fieldnames = ['Title', 'Date', 'Author', 'URL', 'Summary', 'Content', 'Image_URLs']
+                fieldnames = ['Source', 'Title', 'Date', 'Author', 'URL', 'Summary', 'Content', 'Image_URLs']
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(self.articles)
@@ -717,7 +785,7 @@ class StarPhoenixScraper:
                             <span id="modal-date"></span>
                         </div>
                     </div>
-                    <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 font-bold text-2xl ml-4">
+                    <button onclick="closeModal()" class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-bold text-4xl p-3 rounded-lg transition-colors flex-shrink-0">
                         ✕
                     </button>
                 </div>
@@ -738,7 +806,7 @@ class StarPhoenixScraper:
 
                 <!-- Modal Footer -->
                 <div class="border-t p-4 text-center">
-                    <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded">
+                    <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-8 rounded text-lg">
                         Close
                     </button>
                 </div>
@@ -904,8 +972,8 @@ class StarPhoenixScraper:
             logger.error(f"Error generating HTML: {e}")
     
     def run(self, max_articles=None):
-        """Run the scraper"""
-        logger.info("Starting Star Phoenix scraper...")
+        """Run the scraper for this source"""
+        logger.info(f"Starting scraper for {self.source_name}...")
         
         # Fetch RSS feed
         entries = self.fetch_rss_feed()
@@ -920,7 +988,7 @@ class StarPhoenixScraper:
         # Scrape each article
         try:
             for i, entry in enumerate(entries, 1):
-                logger.info(f"Processing article {i}/{len(entries)}")
+                logger.info(f"  Processing article {i}/{len(entries)}")
                 article_data = self.scrape_article(entry)
                 
                 if article_data:
@@ -931,28 +999,446 @@ class StarPhoenixScraper:
         except KeyboardInterrupt:
             logger.info("\nScraping interrupted by user")
         
-        # Save to CSV
-        self.save_to_csv()
+        logger.info(f"Scraped {len(self.articles)} articles from {self.source_name}")
+
+
+def deduplicate_articles_with_openai(articles, api_key):
+    """Use OpenAI to identify and remove duplicate/similar articles based on title and summary"""
+    if not articles or len(articles) < 2:
+        return articles
+    
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
         
-        # Generate standalone HTML file
-        self.generate_html()
+        # Create a summary of articles for OpenAI to analyze
+        article_list = "\n".join([
+            f"{i}. [{article['Source']}] {article['Title']} - {article['Summary'][:100]}"
+            for i, article in enumerate(articles)
+        ])
         
-        logger.info(f"Scraping complete! Processed {len(self.articles)} articles")
+        logger.info("Sending articles to OpenAI for deduplication...")
+        time.sleep(0.5)  # Rate limiting
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at identifying duplicate or near-duplicate articles. Two articles are duplicates if they cover the same story/news event, even if worded differently. Return ONLY a Python list of indices of UNIQUE articles to keep (e.g., [0, 2, 5, 7]). Do not include explanations."
+                },
+                {
+                    "role": "user",
+                    "content": f"Identify duplicate articles and return indices of unique ones to keep:\n\n{article_list}"
+                }
+            ],
+            temperature=0.3,
+            max_tokens=500
+        )
+        
+        # Parse the response to get indices
+        response_text = response.choices[0].message.content.strip()
+        logger.debug(f"OpenAI deduplication response: {response_text}")
+        
+        # Extract list of indices from response
+        import ast
+        try:
+            unique_indices = ast.literal_eval(response_text)
+            if isinstance(unique_indices, list) and all(isinstance(i, int) for i in unique_indices):
+                # Filter articles to keep only unique ones
+                deduped_articles = [articles[i] for i in unique_indices if i < len(articles)]
+                logger.info(f"✓ Removed {len(articles) - len(deduped_articles)} duplicate articles")
+                
+                # Reorder for variety while respecting dates
+                deduped_articles = reorder_for_variety(deduped_articles)
+                
+                return deduped_articles
+            else:
+                logger.warning("OpenAI response not a valid list, keeping all articles")
+                return articles
+        except (ValueError, SyntaxError) as e:
+            logger.warning(f"Could not parse OpenAI response: {e}, keeping all articles")
+            return articles
+            
+    except Exception as e:
+        logger.warning(f"OpenAI deduplication failed: {e}. Keeping all articles.")
+        return articles
+
+
+def reorder_for_variety(articles):
+    """Reorder articles for source variety while respecting date order"""
+    if len(articles) < 2:
+        return articles
+    
+    # Sort by date first (newest first)
+    sorted_articles = sorted(articles, key=lambda a: a.get('Date') or '', reverse=True)
+    
+    # Shuffle within sliding windows to mix sources while maintaining rough chronological order
+    import random
+    result = []
+    window_size = max(3, len(articles) // 5)  # Shuffle within small windows
+    
+    for i in range(0, len(sorted_articles), window_size):
+        window = sorted_articles[i:i+window_size]
+        random.shuffle(window)
+        result.extend(window)
+    
+    return result
 
 
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description='Scrape Star Phoenix RSS feed')
+    parser = argparse.ArgumentParser(description='Scrape RSS feeds from multiple news sources')
     parser.add_argument('-m', '--max', type=int, default=None, 
-                        help='Maximum number of articles to scrape')
+                        help='Maximum number of articles to scrape from each source')
     parser.add_argument('-o', '--output', default='articles', 
                         help='Output directory (default: articles)')
+    parser.add_argument('-s', '--sources', nargs='+', default=None,
+                        help=f'Sources to scrape (default: all). Available: {list(SOURCES.keys())}')
     
     args = parser.parse_args()
     
-    scraper = StarPhoenixScraper(output_dir=args.output)
-    scraper.run(max_articles=args.max)
+    # Determine which sources to scrape
+    sources_to_scrape = args.sources if args.sources else list(SOURCES.keys())
+    
+    # Validate sources
+    for source in sources_to_scrape:
+        if source not in SOURCES:
+            logger.error(f"Unknown source: {source}. Available: {list(SOURCES.keys())}")
+            return
+    
+    # Collect articles from all sources
+    all_articles = []
+    scrapers = []
+    
+    for source_key in sources_to_scrape:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Scraping: {SOURCES[source_key]['name']}")
+        logger.info(f"{'='*60}")
+        
+        try:
+            scraper = RSSNewsScraper(source_key, output_dir=args.output)
+            scraper.run(max_articles=args.max)
+            all_articles.extend(scraper.articles)
+            scrapers.append(scraper)
+        except Exception as e:
+            logger.error(f"Error scraping {SOURCES[source_key]['name']}: {e}")
+            continue
+    
+    if not all_articles:
+        logger.error("No articles were scraped from any source")
+        return
+    
+    # Deduplicate articles using OpenAI if available
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+    if openai_api_key:
+        logger.info(f"\nDeduplicating {len(all_articles)} articles using OpenAI...")
+        all_articles = deduplicate_articles_with_openai(all_articles, openai_api_key)
+        logger.info(f"✓ Deduplication complete: {len(all_articles)} unique articles remaining")
+    
+    # Save combined results
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Combining {len(all_articles)} articles from {len(sources_to_scrape)} sources")
+    logger.info(f"{'='*60}\n")
+    
+    output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Save combined CSV
+    csv_path = os.path.join(output_dir, 'articles.csv')
+    try:
+        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['Source', 'Title', 'Date', 'Author', 'URL', 'Summary', 'Content', 'Image_URLs']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(all_articles)
+        logger.info(f"✓ Saved {len(all_articles)} articles to {csv_path}")
+    except Exception as e:
+        logger.error(f"Error saving CSV: {e}")
+    
+    # Generate combined HTML
+    html_path = os.path.join(output_dir, 'articles.html')
+    try:
+        generate_html_file(all_articles, html_path)
+        logger.info(f"✓ Generated HTML file: {html_path}")
+    except Exception as e:
+        logger.error(f"Error generating HTML: {e}")
+
+
+def generate_html_file(articles, filepath):
+    """Generate a standalone HTML file with embedded article data"""
+    if not articles:
+        logger.warning("No articles to generate HTML")
+        return
+    
+    # Embed article data as JSON
+    articles_json = json.dumps(articles)
+    
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Articles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .line-clamp-2 {{
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-3xl font-bold text-gray-900">🗞️ News Aggregator</h1>
+            <p class="text-gray-600 mt-1">Latest articles from multiple sources</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Articles Grid -->
+        <div id="articles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Articles will be rendered here -->
+        </div>
+    </main>
+
+    <!-- Article Detail Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto" onclick="closeOnOverlayClick(event)">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <!-- Modal Header -->
+                <div class="sticky top-0 bg-white border-b p-4 sm:p-6 flex justify-between items-start">
+                    <div class="flex-1">
+                        <h2 id="modal-title" class="text-2xl sm:text-3xl font-bold text-gray-900 break-words"></h2>
+                        <div id="modal-meta" class="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                            <span id="modal-source" class="font-semibold text-blue-600"></span>
+                            <span id="modal-author"></span>
+                            <span id="modal-date"></span>
+                        </div>
+                    </div>
+                    <button onclick="closeModal()" class="text-gray-600 hover:text-gray-900 hover:bg-gray-100 font-bold text-4xl p-3 rounded-lg transition-colors">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- Modal Image -->
+                <div id="modal-image-container" class="bg-gray-100">
+                    <!-- Images will be inserted here -->
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-6 sm:p-8">
+                    <div id="modal-summary" class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-600 rounded"></div>
+                    <div id="modal-content" class="max-w-none prose-base"></div>
+                    <a id="modal-link" href="#" target="_blank" class="inline-block mt-6 text-blue-600 hover:text-blue-800 font-semibold underline">
+                        Read Full Article →
+                    </a>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="border-t p-4 text-center">
+                    <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-8 rounded text-lg">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Embedded article data
+        const articles = {articles_json};
+
+        // Source color mapping
+        const sourceColors = {{
+            'Star Phoenix': {{ bg: 'bg-red-100', text: 'text-red-800' }},
+            'CBC News - World': {{ bg: 'bg-orange-100', text: 'text-orange-800' }},
+            'New York Times - World': {{ bg: 'bg-yellow-100', text: 'text-yellow-800' }},
+            'Smashing Magazine': {{ bg: 'bg-pink-100', text: 'text-pink-800' }},
+            'Laravel News': {{ bg: 'bg-purple-100', text: 'text-purple-800' }},
+            'Saskatoon Police News': {{ bg: 'bg-indigo-100', text: 'text-indigo-800' }},
+            'Thomson Reuters News': {{ bg: 'bg-cyan-100', text: 'text-cyan-800' }},
+            'BBC News - World': {{ bg: 'bg-teal-100', text: 'text-teal-800' }},
+            'Dow Jones - Top Stories': {{ bg: 'bg-green-100', text: 'text-green-800' }},
+            'The Hockey Writers': {{ bg: 'bg-sky-100', text: 'text-sky-800' }},
+            'ESPN NFL News': {{ bg: 'bg-violet-100', text: 'text-violet-800' }},
+            'ESPN NFL News': {{ bg: 'bg-violet-100', text: 'text-violet-800' }}
+        }};
+
+        function getSourceColor(source) {{
+            return sourceColors[source] || {{ bg: 'bg-gray-100', text: 'text-gray-800' }};
+        }}
+
+        // Render articles
+        function renderArticles() {{
+            const container = document.getElementById('articles-container');
+            container.innerHTML = '';
+
+            // Sort articles by date (newest first)
+            const sortedArticles = articles.sort((a, b) => {{
+                const dateA = new Date(a.Date) || new Date(0);
+                const dateB = new Date(b.Date) || new Date(0);
+                return dateB - dateA;
+            }});
+
+            sortedArticles.forEach((article, index) => {{
+                const dateFormatted = formatDate(article.Date);
+                const sourceColor = getSourceColor(article.Source);
+                
+                // Get first image if available
+                let imagePath = '';
+                if (article.Image_URLs) {{
+                    const imagePaths = article.Image_URLs.split('|').filter(p => p.trim());
+                    if (imagePaths.length > 0) {{
+                        imagePath = imagePaths[0];
+                        if (!imagePath.startsWith('http')) {{
+                            imagePath = imagePath.replace(/^articles\\//, './');
+                        }}
+                    }}
+                }}
+
+                const imageHtml = imagePath ? 
+                    `<img src="${{escapeHtml(imagePath)}}" alt="Article image" class="w-full h-48 object-cover bg-gray-200" onerror="this.parentElement.style.backgroundColor='#d1d5db'; this.style.display='none';">` :
+                    '';
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden';
+                card.innerHTML = `
+                    ${{imageHtml}}
+                    <div class="p-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs font-semibold ${{sourceColor.bg}} ${{sourceColor.text}} px-2 py-1 rounded">${{escapeHtml(article.Source)}}</span>
+                        </div>
+                        <h3 class="font-bold text-lg text-gray-900 mb-2 line-clamp-2">${{escapeHtml(article.Title)}}</h3>
+                        <p class="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed">${{escapeHtml(article.Summary ? article.Summary.substring(0, 125) : 'No summary available')}}</p>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            <span>${{escapeHtml(article.Author)}}</span>
+                            <span>${{dateFormatted}}</span>
+                        </div>
+                    </div>
+                `;
+                card.onclick = () => openModal(index);
+                container.appendChild(card);
+            }});
+        }}
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {{
+            if (!text) return '';
+            const map = {{
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }};
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }}
+
+        // Open modal with article details
+        function openModal(index) {{
+            const article = articles[index];
+            const modal = document.getElementById('modal');
+
+            // Set content
+            document.getElementById('modal-title').textContent = article.Title;
+            document.getElementById('modal-source').textContent = article.Source;
+            document.getElementById('modal-author').textContent = `By ${{article.Author}}`;
+            document.getElementById('modal-date').textContent = formatDate(article.Date);
+            document.getElementById('modal-link').href = article.URL;
+
+            // Show summary if available
+            if (article.Summary && article.Summary.trim()) {{
+                document.getElementById('modal-summary').innerHTML = `<p class="font-semibold text-gray-800 leading-relaxed m-0">${{escapeHtml(article.Summary)}}</p>`;
+            }} else {{
+                document.getElementById('modal-summary').innerHTML = '';
+            }}
+
+            // Format content with line breaks and styling
+            const formattedContent = article.Content
+                .split('\\n\\n')
+                .filter(p => p.trim())
+                .map((p) => {{
+                    const escaped = escapeHtml(p);
+                    return `<p class="mb-4 leading-relaxed text-gray-700">${{escaped}}</p>`;
+                }})
+                .join('');
+            document.getElementById('modal-content').innerHTML = formattedContent;
+
+            // Add images if available
+            const imageContainer = document.getElementById('modal-image-container');
+            imageContainer.innerHTML = '';
+            if (article.Image_URLs) {{
+                const imagePaths = article.Image_URLs.split('|').filter(p => p.trim());
+                if (imagePaths.length > 0) {{
+                    imagePaths.forEach(imagePath => {{
+                        if (!imagePath.startsWith('http')) {{
+                            imagePath = imagePath.replace(/^articles\\//, './');
+                        }}
+                        
+                        const img = document.createElement('img');
+                        img.src = imagePath;
+                        img.alt = article.Title;
+                        img.className = 'w-full h-auto';
+                        img.onerror = () => {{
+                            console.warn('Failed to load image:', imagePath);
+                        }};
+                        imageContainer.appendChild(img);
+                    }});
+                }}
+            }}
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }}
+
+        function closeModal() {{
+            document.getElementById('modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }}
+
+        // Close modal when clicking on the overlay (dark background)
+        function closeOnOverlayClick(event) {{
+            // Check if the click was on the modal itself (overlay), not on the white content box
+            const contentBox = event.target.closest('.bg-white');
+            if (!contentBox) {{
+                closeModal();
+            }}
+        }}
+
+        // Format date
+        function formatDate(dateStr) {{
+            try {{
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', {{ 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                }});
+            }} catch (e) {{
+                return dateStr;
+            }}
+        }}
+
+        // Initialize
+        renderArticles();
+    </script>
+</body>
+</html>
+"""
+    
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        logger.info(f"Generated HTML file: {filepath}")
+    except Exception as e:
+        logger.error(f"Error generating HTML: {e}")
 
 
 if __name__ == '__main__':
