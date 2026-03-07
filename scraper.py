@@ -246,9 +246,10 @@ class RSSNewsScraper:
                     logger.debug(f"Could not validate image dimensions: {e}")
                     return None
             
-            # Create valid filename using source key and sequential ID
+            # Create valid filename using source key, sequential ID, and timestamp
             self.image_counter += 1
-            filename = f"{self.source_key}_{self.image_counter}{file_ext}"
+            timestamp = int(time.time() * 1000)  # Millisecond precision for cache busting
+            filename = f"{self.source_key}_{self.image_counter}_{timestamp}{file_ext}"
             file_path = os.path.join(self.images_dir, filename)
             
             with open(file_path, 'wb') as f:
@@ -257,11 +258,11 @@ class RSSNewsScraper:
             # Log with dimensions if available, otherwise note validation was skipped
             size_kb = len(response.content)/1024
             if width and height:
-                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}{file_ext} ({size_kb:.1f}KB, {width}x{height})")
+                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB, {width}x{height})")
             elif validation_skipped:
-                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}{file_ext} ({size_kb:.1f}KB, AVIF - validation skipped)")
+                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB, AVIF - validation skipped)")
             else:
-                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}{file_ext} ({size_kb:.1f}KB)")
+                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB)")
             return file_path
             return file_path
         except Exception as e:
@@ -1196,6 +1197,68 @@ def reorder_for_variety(articles):
     return result
 
 
+def filter_articles_by_profile(articles, api_key):
+    """Use OpenAI to filter articles to 15-20 that match user profile"""
+    if not articles or len(articles) < 2:
+        return articles
+    
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        
+        # Read user profile from environment variable
+        user_profile = os.getenv('USER_PROFILE', 
+            "30-year-old software developer who enjoys retro gaming, local events, world news, and important sporting events (big game winners, playoffs)")
+        
+        # Create article summaries for OpenAI to analyze
+        article_list = "\n".join([
+            f"{i}. [{article['Source']}] {article['Title']} - {article['Summary'][:100]}"
+            for i, article in enumerate(articles)
+        ])
+        
+        logger.info(f"Filtering {len(articles)} articles to 15-20 based on user profile...")
+        time.sleep(0.5)  # Rate limiting
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are an expert curator. Select articles that would interest a {user_profile}. Return ONLY a Python list of 15-20 article indices (e.g., [0, 2, 5, 7, ...] - exactly 15-20 indices). No explanations."
+                },
+                {
+                    "role": "user",
+                    "content": f"Select 15-20 articles this person would enjoy:\n\n{article_list}"
+                }
+            ],
+            temperature=0.7,
+            max_tokens=200
+        )
+        
+        # Parse response
+        response_text = response.choices[0].message.content.strip()
+        logger.debug(f"Profile filter response: {response_text}")
+        
+        import ast
+        try:
+            selected_indices = ast.literal_eval(response_text)
+            if isinstance(selected_indices, list) and all(isinstance(i, int) for i in selected_indices):
+                # Filter to selected articles
+                filtered_articles = [articles[i] for i in selected_indices if i < len(articles)]
+                logger.info(f"✓ Filtered to {len(filtered_articles)} articles matching profile")
+                return filtered_articles
+            else:
+                logger.warning("OpenAI response not a valid list, keeping all articles")
+                return articles
+        except (ValueError, SyntaxError) as e:
+            logger.warning(f"Could not parse OpenAI filter response: {e}, keeping all articles")
+            return articles
+            
+    except Exception as e:
+        logger.warning(f"Profile filtering failed: {e}. Keeping all articles.")
+        return articles
+
+
 def main():
     import argparse
     
@@ -1255,6 +1318,10 @@ def main():
         logger.info(f"\nDeduplicating {len(all_articles)} articles using OpenAI...")
         all_articles = deduplicate_articles_with_openai(all_articles, openai_api_key)
         logger.info(f"✓ Deduplication complete: {len(all_articles)} unique articles remaining")
+        
+        # Filter to articles matching user profile
+        logger.info(f"\nFiltering articles based on user profile...")
+        all_articles = filter_articles_by_profile(all_articles, openai_api_key)
     
     # Save combined results
     logger.info(f"\n{'='*60}")
