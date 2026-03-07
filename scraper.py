@@ -12,6 +12,7 @@ import os
 import time
 import signal
 import re
+import shutil
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -62,9 +63,33 @@ SOURCES = {
         'name': 'BBC News - World',
         'url': 'https://feeds.bbci.co.uk/news/world/rss.xml'
     },
-    'dow_jones': {
-        'name': 'Dow Jones - Top Stories',
-        'url': 'https://feeds.content.dowjones.io/public/rss/mw_topstories'
+    'nasdaq_tech': {
+        'name': 'Nasdaq - Technology',
+        'url': 'https://www.nasdaq.com/feed/rssoutbound?category=Technology'
+    },
+    'nasdaq_ipos': {
+        'name': 'Nasdaq - IPOs',
+        'url': 'https://www.nasdaq.com/feed/rssoutbound?category=IPOs'
+    },
+    'nasdaq_original': {
+        'name': 'Nasdaq - Original',
+        'url': 'https://www.nasdaq.com/feed/nasdaq-original/rss.xml'
+    },
+    'techcrunch': {
+        'name': 'TechCrunch',
+        'url': 'https://techcrunch.com/feed/'
+    },
+    'polygon': {
+        'name': 'Polygon',
+        'url': 'https://www.polygon.com/feed/'
+    },
+    'filmjabber': {
+        'name': 'Film Jabber',
+        'url': 'https://www.filmjabber.com/rss/rss-current.php'
+    },
+    'politico': {
+        'name': 'Politico - Picks',
+        'url': 'http://www.politico.com/rss/politicopicks.xml'
     },
     'hockey_writers': {
         'name': 'The Hockey Writers',
@@ -164,8 +189,8 @@ class RSSNewsScraper:
             parsed_url = urlparse(image_url)
             filename = os.path.basename(parsed_url.path)
             
-            # Only allow jpg and png
-            allowed_extensions = ('.jpg', '.jpeg', '.png')
+            # Only allow jpg, png, avif, and webp
+            allowed_extensions = ('.jpg', '.jpeg', '.png', '.avif', '.webp')
             file_ext = os.path.splitext(filename)[1].lower()
             
             # Validate based on content-type and extension
@@ -174,15 +199,30 @@ class RSSNewsScraper:
                     file_ext = '.jpg'
                 elif 'png' in content_type:
                     file_ext = '.png'
+                elif 'avif' in content_type:
+                    file_ext = '.avif'
                 else:
-                    logger.debug(f"Skipped non-image file: {image_url}")
-                    return None
+                    # Try to detect from magic bytes (file signature) as fallback
+                    magic_bytes = response.content[:12]
+                    if magic_bytes.startswith(b'\xff\xd8\xff'):  # JPEG
+                        file_ext = '.jpg'
+                    elif magic_bytes.startswith(b'\x89PNG'):  # PNG
+                        file_ext = '.png'
+                    elif b'ftyp' in magic_bytes[:12] and b'avif' in response.content[:32]:  # AVIF
+                        file_ext = '.avif'
+                    elif magic_bytes.startswith(b'RIFF') and b'WEBP' in response.content[8:12]:  # WEBP
+                        file_ext = '.webp'
+                    else:
+                        logger.debug(f"Skipped unidentified image file: {image_url}")
+                        return None
             
             if file_ext not in allowed_extensions:
-                logger.debug(f"Skipped non-jpg/png image: {filename}")
+                logger.debug(f"Skipped non-jpg/png/avif image: {filename}")
                 return None
             
             # Validate image dimensions to avoid icons
+            width, height = None, None
+            validation_skipped = False
             try:
                 from PIL import Image
                 from io import BytesIO
@@ -190,7 +230,7 @@ class RSSNewsScraper:
                 width, height = img.size
                 
                 # Skip images that are too small (likely icons)
-                if width < 300 or height < 300:
+                if width < 200 or height < 200:
                     logger.debug(f"Skipped small image dimensions {width}x{height}: {image_url}")
                     return None
                 
@@ -200,8 +240,13 @@ class RSSNewsScraper:
                     logger.debug(f"Skipped square image (likely icon): {image_url}")
                     return None
             except Exception as e:
-                logger.debug(f"Could not validate image dimensions: {e}")
-                return None
+                # For formats like AVIF that PIL might not support, skip validation
+                if file_ext == '.avif':
+                    logger.debug(f"Skipping dimension validation for AVIF file (PIL may not support): {e}")
+                    validation_skipped = True
+                else:
+                    logger.debug(f"Could not validate image dimensions: {e}")
+                    return None
             
             # Create valid filename
             if not filename or '.' not in filename:
@@ -224,11 +269,59 @@ class RSSNewsScraper:
             with open(file_path, 'wb') as f:
                 f.write(response.content)
             
-            logger.info(f"Downloaded image: {filename} ({len(response.content)/1024:.1f}KB, {width}x{height})")
+            # Log with dimensions if available, otherwise note validation was skipped
+            size_kb = len(response.content)/1024
+            if width and height:
+                logger.info(f"✓ Downloaded image: {filename} ({size_kb:.1f}KB, {width}x{height})")
+            elif validation_skipped:
+                logger.info(f"✓ Downloaded image: {filename} ({size_kb:.1f}KB, AVIF - validation skipped)")
+            else:
+                logger.info(f"✓ Downloaded image: {filename} ({size_kb:.1f}KB)")
             return file_path
         except Exception as e:
             logger.debug(f"Error downloading image {image_url}: {e}")
             return None
+    
+
+    def download_favicon(self, article_url):
+        """Download favicon from article domain as fallback image"""
+        try:
+            # Extract domain from URL
+            parsed = urlparse(article_url)
+            domain = f"{parsed.scheme}://{parsed.netloc}"
+            
+            # Common favicon locations to try
+            favicon_urls = [
+                f"{domain}/favicon.ico",
+                f"{domain}/apple-touch-icon.png",
+                f"{domain}/apple-touch-icon-precomposed.png",
+            ]
+            
+            for favicon_url in favicon_urls:
+                try:
+                    response = requests.get(favicon_url, headers=self.headers, timeout=5)
+                    response.raise_for_status()
+                    
+                    # Check file size
+                    if len(response.content) < 1024:  # At least 1KB for favicon
+                        continue
+                    
+                    # Save favicon
+                    filename = f"favicon_{int(time.time())}_{parsed.netloc.replace('.', '_')}.ico"
+                    file_path = os.path.join(self.images_dir, filename)
+                    
+                    with open(file_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    logger.debug(f"Downloaded favicon: {filename}")
+                    return file_path
+                except Exception as e:
+                    logger.debug(f"Failed to fetch {favicon_url}: {e}")
+                    continue
+        except Exception as e:
+            logger.debug(f"Error downloading favicon: {e}")
+        
+        return None
     
     def clean_content(self, html_content):
         """Clean and extract main content from HTML, preserving paragraph breaks"""
@@ -631,6 +724,10 @@ class RSSNewsScraper:
             elif entry.get('updated'):
                 pub_date = entry.get('updated')
             
+            # Use today's date if no date found
+            if not pub_date:
+                pub_date = datetime.now().strftime('%Y-%m-%d')
+            
             # Extract author (from RSS entry or HTML)
             author = entry.get('author', 'Unknown')
             if not author or author == 'Unknown':
@@ -671,13 +768,64 @@ class RSSNewsScraper:
                 if img_src and img_src not in image_urls:
                     img_src = urljoin(article_url, img_src)
                     image_urls.append(img_src)
+                
+                # Also try srcset for responsive images (picture elements)
+                srcset = img.get('srcset')
+                if srcset:
+                    # Parse srcset format: "url1 1x, url2 2x" or "url1 640w, url2 1280w"
+                    for srcset_entry in srcset.split(','):
+                        srcset_url = srcset_entry.strip().split()[0]  # Get URL before size descriptor
+                        if srcset_url and srcset_url not in image_urls:
+                            srcset_url = urljoin(article_url, srcset_url)
+                            image_urls.append(srcset_url)
+            
+            # Also extract from <source> elements inside <picture> tags
+            for picture in soup.find_all('picture'):
+                for source in picture.find_all('source'):
+                    # Check srcset attribute on source elements
+                    srcset = source.get('srcset')
+                    if srcset:
+                        # Parse srcset format
+                        for srcset_entry in srcset.split(','):
+                            srcset_url = srcset_entry.strip().split()[0]
+                            if srcset_url and srcset_url not in image_urls:
+                                srcset_url = urljoin(article_url, srcset_url)
+                                image_urls.append(srcset_url)
             
             # Download images
-            local_image_paths = []
+            image_data = []  # List of (path, size) tuples
             for img_url in image_urls[:3]:  # Limit to 3 images
                 local_path = self.download_image(img_url, title)
                 if local_path:
-                    local_image_paths.append(local_path)
+                    try:
+                        file_size = os.path.getsize(local_path)
+                        image_data.append((local_path, file_size))
+                    except Exception as e:
+                        logger.debug(f"Could not get file size for {local_path}: {e}")
+            
+            # If no article images found, try favicon as fallback
+            if not image_data:
+                logger.debug(f"No article images found, attempting to fetch favicon")
+                favicon_path = self.download_favicon(article_url)
+                if favicon_path:
+                    try:
+                        file_size = os.path.getsize(favicon_path)
+                        image_data.append((favicon_path, file_size))
+                    except Exception as e:
+                        logger.debug(f"Could not get file size for favicon {favicon_path}: {e}")
+            
+            # Keep only the largest image if multiple were downloaded
+            if len(image_data) > 1:
+                largest = max(image_data, key=lambda x: x[1])
+                for path, size in image_data:
+                    if path != largest[0]:
+                        try:
+                            os.remove(path)
+                        except Exception as e:
+                            logger.debug(f"Could not delete {path}: {e}")
+                image_data = [largest]
+            
+            local_image_paths = [path for path, size in image_data]
             
             article_data = {
                 'Source': self.source_name,
@@ -844,13 +992,19 @@ class RSSNewsScraper:
 
                 const card = document.createElement('div');
                 card.className = 'bg-white rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer overflow-hidden';
+                
+                // Build author span conditionally
+                const authorSpan = article.Author && article.Author !== 'Unknown' 
+                    ? `<span>${{escapeHtml(article.Author)}}</span>` 
+                    : '';
+                
                 card.innerHTML = `
                     ${{imageHtml}}
                     <div class="p-4">
                         <h3 class="font-bold text-lg text-gray-900 mb-2 line-clamp-2">${{escapeHtml(article.Title)}}</h3>
                         <p class="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed">${{escapeHtml(article.Summary ? article.Summary.substring(0, 125) : 'No summary available')}}</p>
                         <div class="flex justify-between items-center text-xs text-gray-500">
-                            <span>${{escapeHtml(article.Author)}}</span>
+                            ${{authorSpan}}
                             <span>${{dateFormatted}}</span>
                         </div>
                     </div>
@@ -880,7 +1034,15 @@ class RSSNewsScraper:
 
             // Set content
             document.getElementById('modal-title').textContent = article.Title;
-            document.getElementById('modal-author').textContent = `By ${{article.Author}}`;
+            const authorSpan = document.getElementById('modal-author');
+            const authorText = (article.Author || '').trim();
+            if (authorText && authorText !== 'Unknown') {{
+                authorSpan.textContent = 'By ' + authorText;
+                authorSpan.style.display = 'inline';
+            }} else {{
+                authorSpan.textContent = '';
+                authorSpan.style.display = 'none';
+            }}
             document.getElementById('modal-date').textContent = formatDate(article.Date);
             document.getElementById('modal-link').href = article.URL;
 
@@ -991,8 +1153,19 @@ class RSSNewsScraper:
                 logger.info(f"  Processing article {i}/{len(entries)}")
                 article_data = self.scrape_article(entry)
                 
-                if article_data:
+                # Only keep articles that have both content AND images
+                if article_data and article_data.get('Content', '').strip() and article_data.get('Image_URLs', '').strip():
                     self.articles.append(article_data)
+                elif article_data:
+                    # Log why we're skipping this article
+                    has_content = bool(article_data.get('Content', '').strip())
+                    has_images = bool(article_data.get('Image_URLs', '').strip())
+                    reasons = []
+                    if not has_content:
+                        reasons.append("no content")
+                    if not has_images:
+                        reasons.append("no images")
+                    logger.debug(f"Skipped article: {article_data.get('Title', 'Unknown')} ({', '.join(reasons)})")
                 
                 # Be respectful to the server
                 time.sleep(2)
@@ -1108,6 +1281,15 @@ def main():
             logger.error(f"Unknown source: {source}. Available: {list(SOURCES.keys())}")
             return
     
+    # Clear old images directory before scraping
+    output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
+    images_dir = os.path.join(output_dir, 'images')
+    if os.path.exists(images_dir):
+        shutil.rmtree(images_dir)
+        logger.info(f"✓ Cleared old images directory")
+    os.makedirs(images_dir, exist_ok=True)
+    
     # Collect articles from all sources
     all_articles = []
     scrapers = []
@@ -1141,9 +1323,6 @@ def main():
     logger.info(f"\n{'='*60}")
     logger.info(f"Combining {len(all_articles)} articles from {len(sources_to_scrape)} sources")
     logger.info(f"{'='*60}\n")
-    
-    output_dir = args.output
-    os.makedirs(output_dir, exist_ok=True)
     
     # Save combined CSV
     csv_path = os.path.join(output_dir, 'articles.csv')
@@ -1349,7 +1528,7 @@ def generate_html_file(articles, filepath):
             // Set content
             document.getElementById('modal-title').textContent = article.Title;
             document.getElementById('modal-source').textContent = article.Source;
-            document.getElementById('modal-author').textContent = `By ${{article.Author}}`;
+            document.getElementById('modal-author').textContent = `${{article.Author !== 'Unknown' ? ('By ' + article.Author) : ''}}`;
             document.getElementById('modal-date').textContent = formatDate(article.Date);
             document.getElementById('modal-link').href = article.URL;
 

@@ -43,5 +43,8 @@ env/
 Thumbs.db
 
 # Project specific
-articles/images/
-articles/articles.csv
+articles/
+docs/articles/
+docs/images/
+*.html
+!README.md
