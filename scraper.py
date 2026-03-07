@@ -1026,7 +1026,8 @@ class RSSNewsScraper:
             }}
 
             // Reset scroll to top before showing modal
-            modal.scrollTop = 0;
+            const modalContent = modal.querySelector('.overflow-y-auto');
+            if (modalContent) modalContent.scrollTop = 0;
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }}
@@ -1200,7 +1201,7 @@ def reorder_for_variety(articles):
 
 
 def filter_articles_by_profile(articles, api_key):
-    """Use OpenAI to filter articles to 15-20 that match user profile"""
+    """Use OpenAI to filter articles to specified count that match user profile"""
     if not articles or len(articles) < 2:
         return articles
     
@@ -1208,9 +1209,10 @@ def filter_articles_by_profile(articles, api_key):
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
         
-        # Read user profile from environment variable
+        # Read user profile and filter count from environment variables
         user_profile = os.getenv('USER_PROFILE', 
             "30-year-old software developer who enjoys retro gaming, local events, world news, and important sporting events (big game winners, playoffs)")
+        filter_count = int(os.getenv('ARTICLES_FILTER_COUNT', '15'))
         
         # Create article summaries for OpenAI to analyze
         article_list = "\n".join([
@@ -1218,7 +1220,7 @@ def filter_articles_by_profile(articles, api_key):
             for i, article in enumerate(articles)
         ])
         
-        logger.info(f"Filtering {len(articles)} articles to 15-20 based on user profile...")
+        logger.info(f"Filtering {len(articles)} articles to {filter_count} based on user profile...")
         time.sleep(0.5)  # Rate limiting
         
         response = client.chat.completions.create(
@@ -1226,11 +1228,11 @@ def filter_articles_by_profile(articles, api_key):
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are an expert curator. Select articles that would interest a {user_profile}. Return ONLY a Python list of 15-20 article indices (e.g., [0, 2, 5, 7, ...] - exactly 15-20 indices). No explanations."
+                    "content": f"You are an expert curator. Select articles that would interest a {user_profile}. Return ONLY a Python list of exactly {filter_count} article indices (e.g., [0, 2, 5, 7, ...] - exactly {filter_count} indices). No explanations."
                 },
                 {
                     "role": "user",
-                    "content": f"Select 15-20 articles this person would enjoy:\n\n{article_list}"
+                    "content": f"Select {filter_count} articles this person would enjoy:\n\n{article_list}"
                 }
             ],
             temperature=0.7,
@@ -1399,6 +1401,10 @@ def generate_html_file(articles, filepath):
         logger.warning("No articles to generate HTML")
         return
     
+    # Get current timestamp for display
+    from datetime import datetime
+    fetch_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+    
     # Embed article data as JSON
     articles_json = json.dumps(articles)
     
@@ -1423,7 +1429,10 @@ def generate_html_file(articles, filepath):
     <header class="bg-white shadow">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <h1 class="text-3xl font-bold text-gray-900">🗞️ News Aggregator</h1>
-            <p class="text-gray-600 mt-1">Latest articles from multiple sources</p>
+            <div class="mt-2">
+                <p class="text-gray-600">Latest articles from multiple sources</p>
+                <p class="text-sm text-gray-500 mt-1">Last updated: {fetch_time}</p>
+            </div>
         </div>
     </header>
 
@@ -1621,6 +1630,9 @@ def generate_html_file(articles, filepath):
                 }}
             }}
 
+            // Reset scroll to top before showing modal
+            const modalContent = modal.querySelector('.overflow-y-auto');
+            if (modalContent) modalContent.scrollTop = 0;
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }}
