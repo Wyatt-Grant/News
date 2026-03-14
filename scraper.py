@@ -4,20 +4,22 @@ Star Phoenix RSS Feed Scraper
 Scrapes articles from Star Phoenix RSS feed, extracts content, and exports to CSV
 """
 
-import feedparser
-import requests
+import argparse
+import ast
 import csv
+import feedparser
 import json
+import logging
+import nltk
 import os
-import time
-import signal
-import re
-import shutil
 import random
+import re
+import requests
+import shutil
+import time
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-import logging
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -29,6 +31,11 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Suppress verbose logging from external libraries
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('openai').setLevel(logging.WARNING)
 
 # Define RSS sources
 SOURCES = {
@@ -60,14 +67,6 @@ SOURCES = {
         'name': 'BBC News - World',
         'url': 'https://feeds.bbci.co.uk/news/world/rss.xml'
     },
-    'nasdaq_tech': {
-        'name': 'Nasdaq - Technology',
-        'url': 'https://www.nasdaq.com/feed/rssoutbound?category=Technology'
-    },
-    'nasdaq_original': {
-        'name': 'Nasdaq - Original',
-        'url': 'https://www.nasdaq.com/feed/nasdaq-original/rss.xml'
-    },
     'techcrunch': {
         'name': 'TechCrunch',
         'url': 'https://techcrunch.com/feed/'
@@ -80,22 +79,14 @@ SOURCES = {
         'name': 'Film Jabber',
         'url': 'https://www.filmjabber.com/rss/rss-current.php'
     },
-    'politico': {
-        'name': 'Politico - Picks',
-        'url': 'http://www.politico.com/rss/politicopicks.xml'
+    'variety': {
+        'name': 'Variety',
+        'url': 'https://variety.com/feed/'
     },
-    'hockey_writers': {
-        'name': 'The Hockey Writers',
-        'url': 'https://thehockeywriters.com/feed'
+    'ars_technica': {
+        'name': 'Ars Technica',
+        'url': 'https://arstechnica.com/feed/'
     },
-    'espn_nfl': {
-        'name': 'ESPN NFL News',
-        'url': 'https://www.espn.com/espn/rss/nfl/news?null'
-    },
-    'xxlhiphop': {
-        'name': 'XXL Hip Hop',
-        'url': 'https://www.xxlmag.com/feed/'
-    }
 }
 
 
@@ -144,19 +135,18 @@ class RSSNewsScraper:
     def fetch_rss_feed(self):
         """Fetch and parse the RSS feed"""
         try:
-            logger.info(f"Fetching RSS feed from {self.rss_url}")
+            logger.debug(f"Fetching RSS feed from {self.rss_url}")
             
             # Fetch the feed with a timeout
             response = requests.get(self.rss_url, headers=self.headers, timeout=10)
             response.raise_for_status()
             
-            logger.info("RSS feed downloaded, parsing entries...")
             feed = feedparser.parse(response.content)
             
             if feed.bozo:
                 logger.warning(f"RSS feed parsing warning: {feed.bozo_exception}")
             
-            logger.info(f"Found {len(feed.entries)} articles in feed")
+            logger.debug(f"Found {len(feed.entries)} articles in feed")
             return feed.entries
         except requests.exceptions.Timeout:
             logger.error(f"Timeout fetching RSS feed from {self.rss_url}")
@@ -258,18 +248,15 @@ class RSSNewsScraper:
             # Log with dimensions if available, otherwise note validation was skipped
             size_kb = len(response.content)/1024
             if width and height:
-                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB, {width}x{height})")
+                logger.debug(f"Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB, {width}x{height})")
             elif validation_skipped:
-                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB, AVIF - validation skipped)")
+                logger.debug(f"Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB, AVIF - validation skipped)")
             else:
-                logger.info(f"✓ Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB)")
-            return file_path
+                logger.debug(f"Downloaded image: {self.source_key}_{self.image_counter}_{timestamp}{file_ext} ({size_kb:.1f}KB)")
             return file_path
         except Exception as e:
             logger.debug(f"Error downloading image {image_url}: {e}")
             return None
-    
-
 
     def clean_content(self, html_content):
         """Clean and extract main content from HTML, preserving paragraph breaks"""
@@ -316,7 +303,7 @@ class RSSNewsScraper:
                     text = element.get_text(strip=True)
                     if text:
                         content_parts.append(text)
-                elif element.name == 'h1' or element.name == 'h2' or element.name == 'h3':
+                elif element.name in ['h1', 'h2', 'h3']:
                     # Include headings as they mark section breaks
                     text = element.get_text(strip=True)
                     if text and len(text) > 5:  # Skip very short headings
@@ -532,8 +519,7 @@ class RSSNewsScraper:
             return content[:200]
         
         try:
-            # Import nltk sentence tokenizer
-            import nltk
+            # Ensure NLTK data is available
             try:
                 nltk.data.find('tokenizers/punkt')
             except LookupError:
@@ -587,8 +573,7 @@ class RSSNewsScraper:
             return content
         
         try:
-            logger.info("  Cleaning content with OpenAI...")
-            time.sleep(0.5)  # Rate limiting: 0.5 second delay between calls
+            time.sleep(0.25)  # Rate limiting: 0.5 second delay between calls
             
             response = self.openai_client.chat.completions.create(
                 model=self.openai_model,
@@ -607,7 +592,6 @@ class RSSNewsScraper:
             )
             
             cleaned = response.choices[0].message.content.strip()
-            logger.info("  ✓ OpenAI cleanup complete")
             return cleaned
         except Exception as e:
             logger.warning(f"OpenAI cleanup failed: {e}. Using original content.")
@@ -619,8 +603,7 @@ class RSSNewsScraper:
             return self.generate_summary(content)
         
         try:
-            logger.info("  Generating summary with OpenAI...")
-            time.sleep(0.5)  # Rate limiting: 0.5 second delay between calls
+            time.sleep(0.25)  # Rate limiting: 0.5 second delay between calls
             
             response = self.openai_client.chat.completions.create(
                 model=self.openai_model,
@@ -639,7 +622,6 @@ class RSSNewsScraper:
             )
             
             summary = response.choices[0].message.content.strip()
-            logger.info("  ✓ OpenAI summary complete")
             return summary
         except Exception as e:
             logger.warning(f"OpenAI summary failed: {e}. Falling back to local summarization.")
@@ -658,7 +640,7 @@ class RSSNewsScraper:
             return None
         
         try:
-            logger.info(f"Scraping article: {article_url}")
+            logger.debug(f"Scraping article: {article_url}")
             response = requests.get(article_url, headers=self.headers, timeout=10)
             response.raise_for_status()
             
@@ -1076,7 +1058,7 @@ class RSSNewsScraper:
     
     def run(self, max_articles=None):
         """Run the scraper for this source"""
-        logger.info(f"Starting scraper for {self.source_name}...")
+        logger.info(f"Scraping {self.source_name}...")
         
         # Fetch RSS feed
         entries = self.fetch_rss_feed()
@@ -1091,12 +1073,13 @@ class RSSNewsScraper:
         # Scrape each article
         try:
             for i, entry in enumerate(entries, 1):
-                logger.info(f"  Processing article {i}/{len(entries)}")
                 article_data = self.scrape_article(entry)
+                title = article_data.get('Title', 'Unknown') if article_data else 'Unknown'
                 
                 # Only keep articles that have both content AND images
                 if article_data and article_data.get('Content', '').strip() and article_data.get('Image_URLs', '').strip():
                     self.articles.append(article_data)
+                    logger.info(f"  [{i}/{len(entries)}] ✓ {title}")
                 elif article_data:
                     # Log why we're skipping this article
                     has_content = bool(article_data.get('Content', '').strip())
@@ -1106,14 +1089,17 @@ class RSSNewsScraper:
                         reasons.append("no content")
                     if not has_images:
                         reasons.append("no images")
-                    logger.debug(f"Skipped article: {article_data.get('Title', 'Unknown')} ({', '.join(reasons)})")
+                    logger.info(f"  [{i}/{len(entries)}] ✗ {title} ({', '.join(reasons)})")
+                else:
+                    logger.info(f"  [{i}/{len(entries)}] ✗ Failed to scrape")
                 
                 # Be respectful to the server
                 time.sleep(2)
         except KeyboardInterrupt:
             logger.info("\nScraping interrupted by user")
         
-        logger.info(f"Scraped {len(self.articles)} articles from {self.source_name}")
+        if self.articles:
+            logger.info(f"  Completed: {len(self.articles)}/{len(entries)} articles saved\n")
 
 
 def deduplicate_articles_with_openai(articles, api_key):
@@ -1132,7 +1118,7 @@ def deduplicate_articles_with_openai(articles, api_key):
         ])
         
         logger.info("Sending articles to OpenAI for deduplication...")
-        time.sleep(0.5)  # Rate limiting
+        time.sleep(0.25)  # Rate limiting
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -1161,10 +1147,7 @@ def deduplicate_articles_with_openai(articles, api_key):
             if isinstance(unique_indices, list) and all(isinstance(i, int) for i in unique_indices):
                 # Filter articles to keep only unique ones
                 deduped_articles = [articles[i] for i in unique_indices if i < len(articles)]
-                logger.info(f"✓ Removed {len(articles) - len(deduped_articles)} duplicate articles")
-                
-                # Reorder for variety while respecting dates
-                deduped_articles = reorder_for_variety(deduped_articles)
+                logger.debug(f"Removed {len(articles) - len(deduped_articles)} duplicate articles")
                 
                 return deduped_articles
             else:
@@ -1179,93 +1162,8 @@ def deduplicate_articles_with_openai(articles, api_key):
         return articles
 
 
-def reorder_for_variety(articles):
-    """Reorder articles for source variety while respecting date order"""
-    if len(articles) < 2:
-        return articles
-    
-    # Sort by date first (newest first)
-    sorted_articles = sorted(articles, key=lambda a: a.get('Date') or '', reverse=True)
-    
-    # Shuffle within sliding windows to mix sources while maintaining rough chronological order
-    import random
-    result = []
-    window_size = max(3, len(articles) // 5)  # Shuffle within small windows
-    
-    for i in range(0, len(sorted_articles), window_size):
-        window = sorted_articles[i:i+window_size]
-        random.shuffle(window)
-        result.extend(window)
-    
-    return result
-
-
-def filter_articles_by_profile(articles, api_key):
-    """Use OpenAI to filter articles to specified count that match user profile"""
-    if not articles or len(articles) < 2:
-        return articles
-    
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        
-        # Read user profile and filter count from environment variables
-        user_profile = os.getenv('USER_PROFILE', 
-            "30-year-old software developer who enjoys retro gaming, local events, world news, and important sporting events (big game winners, playoffs)")
-        filter_count = int(os.getenv('ARTICLES_FILTER_COUNT', '15'))
-        
-        # Create article summaries for OpenAI to analyze
-        article_list = "\n".join([
-            f"{i}. [{article['Source']}] {article['Title']} - {article['Summary'][:100]}"
-            for i, article in enumerate(articles)
-        ])
-        
-        logger.info(f"Filtering {len(articles)} articles to {filter_count} based on user profile...")
-        time.sleep(0.5)  # Rate limiting
-        
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"You are an expert curator. Select articles that would interest a {user_profile}. Return ONLY a Python list of exactly {filter_count} article indices (e.g., [0, 2, 5, 7, ...] - exactly {filter_count} indices). No explanations."
-                },
-                {
-                    "role": "user",
-                    "content": f"Select {filter_count} articles this person would enjoy:\n\n{article_list}"
-                }
-            ],
-            temperature=0.7,
-            max_tokens=200
-        )
-        
-        # Parse response
-        response_text = response.choices[0].message.content.strip()
-        logger.debug(f"Profile filter response: {response_text}")
-        
-        import ast
-        try:
-            selected_indices = ast.literal_eval(response_text)
-            if isinstance(selected_indices, list) and all(isinstance(i, int) for i in selected_indices):
-                # Filter to selected articles
-                filtered_articles = [articles[i] for i in selected_indices if i < len(articles)]
-                logger.info(f"✓ Filtered to {len(filtered_articles)} articles matching profile")
-                return filtered_articles
-            else:
-                logger.warning("OpenAI response not a valid list, keeping all articles")
-                return articles
-        except (ValueError, SyntaxError) as e:
-            logger.warning(f"Could not parse OpenAI filter response: {e}, keeping all articles")
-            return articles
-            
-    except Exception as e:
-        logger.warning(f"Profile filtering failed: {e}. Keeping all articles.")
-        return articles
-
 
 def main():
-    import argparse
-    
     parser = argparse.ArgumentParser(description='Scrape RSS feeds from multiple news sources')
     parser.add_argument('-m', '--max', type=int, default=None, 
                         help='Maximum number of articles to scrape from each source')
@@ -1291,18 +1189,14 @@ def main():
     images_dir = os.path.join(output_dir, 'images')
     if os.path.exists(images_dir):
         shutil.rmtree(images_dir)
-        logger.info(f"✓ Cleared old images directory")
     os.makedirs(images_dir, exist_ok=True)
     
     # Collect articles from all sources
     all_articles = []
     scrapers = []
     
-    for source_key in sources_to_scrape:
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Scraping: {SOURCES[source_key]['name']}")
-        logger.info(f"{'='*60}")
-        
+    for i, source_key in enumerate(sources_to_scrape, 1):
+        logger.info(f"Scraping ({i}/{len(sources_to_scrape)}) {SOURCES[source_key]['name']}...")
         try:
             scraper = RSSNewsScraper(source_key, output_dir=args.output)
             scraper.run(max_articles=args.max)
@@ -1319,24 +1213,8 @@ def main():
     # Deduplicate articles using OpenAI if available
     openai_api_key = os.getenv('OPENAI_API_KEY')
     if openai_api_key:
-        logger.info(f"\nDeduplicating {len(all_articles)} articles using OpenAI...")
+        logger.debug(f"Deduplicating {len(all_articles)} articles using OpenAI...")
         all_articles = deduplicate_articles_with_openai(all_articles, openai_api_key)
-        logger.info(f"✓ Deduplication complete: {len(all_articles)} unique articles remaining")
-        
-        # Filter to articles matching user profile
-        logger.info(f"\nFiltering articles based on user profile...")
-        all_articles = filter_articles_by_profile(all_articles, openai_api_key)
-    
-    # Save combined results
-    logger.info(f"\n{'='*60}")
-    logger.info(f"Combining {len(all_articles)} articles from {len(sources_to_scrape)} sources")
-    logger.info(f"{'='*60}\n")
-    
-    # Randomize articles with the same date
-    all_articles = randomize_articles_by_date(all_articles)
-    
-    # Move NFL and hockey articles to the bottom
-    all_articles = move_nfl_and_hockey_to_bottom(all_articles)
     
     # Save combined CSV
     csv_path = os.path.join(output_dir, 'articles.csv')
@@ -1350,49 +1228,40 @@ def main():
     except Exception as e:
         logger.error(f"Error saving CSV: {e}")
     
+    # Shuffle articles for HTML display to distribute sources evenly (no consecutive articles from same source)
+    from collections import defaultdict
+    articles_by_source = defaultdict(list)
+    for article in all_articles:
+        articles_by_source[article['Source']].append(article)
+    
+    # Shuffle within each source
+    for source in articles_by_source:
+        random.shuffle(articles_by_source[source])
+    
+    # Round-robin through sources to distribute evenly while maintaining variety
+    html_articles = []
+    max_per_source = max(len(articles) for articles in articles_by_source.values()) if articles_by_source else 0
+    
+    for _ in range(max_per_source):
+        # Randomize source order each round for better variety
+        sources_this_round = list(articles_by_source.keys())
+        random.shuffle(sources_this_round)
+        
+        for source in sources_this_round:
+            if articles_by_source[source]:
+                html_articles.append(articles_by_source[source].pop(0))
+    
     # Generate combined HTML
     html_path = os.path.join(output_dir, 'index.html')
     try:
-        generate_html_file(all_articles, html_path)
+        generate_html_file(html_articles, html_path)
         logger.info(f"✓ Generated HTML file: {html_path}")
     except Exception as e:
         logger.error(f"Error generating HTML: {e}")
 
 
 
-def randomize_articles_by_date(articles):
-    """Randomize article order within each date group with aggressive shuffling"""
-    from itertools import groupby
-    
-    # Sort articles by date first
-    sorted_articles = sorted(articles, key=lambda x: x.get('Date', ''))
-    
-    # Group by date and randomize within each group with multiple shuffles
-    result = []
-    for date, group in groupby(sorted_articles, key=lambda x: x.get('Date', '')):
-        group_list = list(group)
-        # Do multiple shuffle passes to break up source grouping
-        for _ in range(3):
-            random.shuffle(group_list)
-        result.extend(group_list)
-    
-    return result
 
-
-def move_nfl_and_hockey_to_bottom(articles):
-    """Move NFL and hockey articles to the bottom of the list"""
-    nfl_hockey_articles = []
-    other_articles = []
-    
-    for article in articles:
-        source_key = article.get('Source', '').lower()
-        # Check if it's from ESPN NFL or The Hockey Writers
-        if 'nfl' in source_key or 'hockey' in source_key:
-            nfl_hockey_articles.append(article)
-        else:
-            other_articles.append(article)
-    
-    return other_articles + nfl_hockey_articles
 
 
 def generate_html_file(articles, filepath):
@@ -1402,7 +1271,6 @@ def generate_html_file(articles, filepath):
         return
     
     # Get current timestamp for display
-    from datetime import datetime
     fetch_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
     
     # Embed article data as JSON
