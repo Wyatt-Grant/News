@@ -1007,11 +1007,17 @@ class RSSNewsScraper:
                 }}
             }}
 
-            // Reset scroll to top before showing modal
-            const modalContent = modal.querySelector('.overflow-y-auto');
-            if (modalContent) modalContent.scrollTop = 0;
+            // Show modal and scroll to top
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+            
+            // Use requestAnimationFrame to ensure DOM is ready, then scroll to top
+            requestAnimationFrame(() => {{
+                const contentBox = modal.querySelector('.bg-white');
+                if (contentBox) {{
+                    contentBox.scrollTop = 0;
+                }}
+            }});
         }}
 
         function closeModal() {{
@@ -1498,11 +1504,17 @@ def generate_html_file(articles, filepath):
                 }}
             }}
 
-            // Reset scroll to top before showing modal
-            const modalContent = modal.querySelector('.overflow-y-auto');
-            if (modalContent) modalContent.scrollTop = 0;
+            // Show modal and scroll to top
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+            
+            // Use requestAnimationFrame to ensure DOM is ready, then scroll to top
+            requestAnimationFrame(() => {{
+                const contentBox = modal.querySelector('.bg-white');
+                if (contentBox) {{
+                    contentBox.scrollTop = 0;
+                }}
+            }});
         }}
 
         function closeModal() {{
